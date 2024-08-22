@@ -32,8 +32,32 @@ import time
 # def fetch_yt_video(link):
 #     video = pafy.new(link)
 #     return video.title
+import jwt
+import time
+from datetime import datetime, timedelta
 
-def get_table_download_link(df,filename,text):
+SECRET_KEY = "your_secret_key"  # Replace with your own secret key
+
+def generate_jwt_token(user_data):
+    """Generate a JWT token for the user"""
+    payload = {
+        "user_id": user_data["id"],
+        "username": user_data["username"],
+        "exp": datetime.utcnow() + timedelta(minutes=30)  # Token expires in 30 minutes
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+
+def decode_jwt_token(token):
+    """Decode a JWT token"""
+    try:
+        return jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+    
+    
+def get_table_download_link(df,filename,text)
     
     csv = df.to_csv(index=False)
     b64 = base64.b64encode(csv.encode()).decode()  # some strings <-> bytes conversions necessary here
@@ -557,16 +581,22 @@ def run():
                 ad_password = st.text_input("Password", type='password')
 
                 if st.button('Login'):
-                    cursor.execute("SELECT Password FROM reviewer_data WHERE UserName = %s", (ad_user,))
+                    cursor.execute("SELECT ID, UserName, Password FROM reviewer_data WHERE UserName = %s", (ad_user,))
                     row = cursor.fetchone()
-                    if row and (ad_password == row[0]):
+                    if row and (ad_password == row[2]):
+                        user_data = {
+                            "id": row[0],
+                            "username": row[1]
+                        }
+                        token = generate_jwt_token(user_data)
+                        st.session_state['token'] = token
                         st.session_state['logged_in'] = True
                         st.session_state['ad_user'] = ad_user
                         st.success(f"Welcome {ad_user}!")
                     else:
                         st.error("Invalid username or password")
             else:
-                display_review_section(st.session_state['ad_user'])
+                display_review_section(st.session_state['ad_user'], st.session_state['token'])
 
         # Function to display the review section
         def display_review_section(ad_user):
